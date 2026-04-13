@@ -1,0 +1,157 @@
+import os
+import joblib
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
+from sklearn.preprocessing import StandardScaler
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+
+
+# Load the dataset
+data = pd.read_csv("TRPL+PLQY.csv")
+
+# Assign the first five columns as output variables and the remaining columns as input variables
+Y = data.iloc[:, :5].values
+X = data.iloc[:, 5:].values
+
+# Standardize the input and output variables
+x_scaler = StandardScaler()
+y_scaler = StandardScaler()
+
+X = x_scaler.fit_transform(X)
+Y = y_scaler.fit_transform(Y)
+
+# Convert the processed arrays into PyTorch tensors
+X = torch.tensor(X, dtype=torch.float32)
+Y = torch.tensor(Y, dtype=torch.float32)
+
+# Select the computation device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+# Define a custom dataset class
+class EquationDataset(Dataset):
+    def __init__(self, X, Y):
+        self.X = X
+        self.Y = Y
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.Y[idx]
+
+
+# Split the dataset into training and test subsets
+train_size = int(0.8 * len(X))
+test_size = len(X) - train_size
+
+train_dataset, test_dataset = torch.utils.data.random_split(
+    EquationDataset(X, Y),
+    [train_size, test_size]
+)
+
+# Construct data loaders for model training and evaluation
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+
+# Define the multilayer perceptron architecture
+class MLP(nn.Module):
+    def __init__(self):
+        super(MLP, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(401, 1800),
+            nn.ReLU(),
+            nn.Dropout(0.046),
+            nn.Linear(1800, 1800),
+            nn.ReLU(),
+            nn.Dropout(0.046),
+            nn.Linear(1800, 5)
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
+# Train the neural network model
+def train_model(model, train_loader, epochs=600, lr=9.67e-6):
+    model.to(device)
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    for epoch in range(epochs):
+        total_loss = 0
+        for X_batch, Y_batch in train_loader:
+            X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(X_batch)
+            loss = criterion(outputs, Y_batch)
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        print(f"Epoch [{epoch + 1}/{epochs}], Loss: {total_loss / len(train_loader):.4f}")
+
+
+# Record the output variable names
+output_columns = data.columns[:5].tolist()
+
+
+# Evaluate the model performance on the test set
+def evaluate_model(model, test_loader):
+    model.eval()
+    model.to(device)
+    criterion = nn.MSELoss()
+    total_loss = 0
+    all_preds, all_labels = [], []
+
+    with torch.no_grad():
+        for X_batch, Y_batch in test_loader:
+            X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
+            outputs = model(X_batch)
+            loss = criterion(outputs, Y_batch)
+            total_loss += loss.item()
+
+            all_preds.append(outputs.cpu())
+            all_labels.append(Y_batch.cpu())
+
+    print(f"Test Loss: {total_loss / len(test_loader):.4f}")
+
+    # Concatenate predictions and reference values from all batches
+    all_preds = torch.cat(all_preds, dim=0).numpy()
+    all_labels = torch.cat(all_labels, dim=0).numpy()
+
+    # Transform the standardized outputs back to the original scale
+    all_preds = y_scaler.inverse_transform(all_preds)
+    all_labels = y_scaler.inverse_transform(all_labels)
+
+    # Calculate the coefficient of determination for each output variable
+    r2_scores = [r2_score(all_labels[:, i], all_preds[:, i]) for i in range(5)]
+
+    for i, r2 in enumerate(r2_scores):
+        print(f"R² Score for {output_columns[i]}: {r2:.4f}")
+
+    return all_labels, all_preds, r2_scores
+
+
+# Initialize and train the model
+model = MLP()
+train_model(model, train_loader)
+
+# Evaluate the trained model
+all_labels, all_preds, r2_scores = evaluate_model(model, test_loader)
+
+# Save the trained model parameters and the fitted standardization objects
+torch.save(model.state_dict(), "trained_model.pth")
+joblib.dump(x_scaler, "x_scaler.pkl")
+joblib.dump(y_scaler, "y_scaler.pkl")
+
+print("Model parameters and fitted scalers were saved as trained_model.pth, x_scaler.pkl, and y_scaler.pkl.")

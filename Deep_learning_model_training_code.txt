@@ -249,20 +249,20 @@ def define_parameter_bounds():
     """
 
     param_lower = np.array([
-        1e-10,   # Rpop
-        1e-11,   # Rdep
+        1e-10,   # Rec
+        1e-11,   # Rhc
         1e14,    # NT
         1e-12,   # Reh
-        1e4,     # Rdet
+        1e4,     # Ree
         1e-29    # RAug
     ], dtype=np.float64)
 
     param_upper = np.array([
-        1e-8,    # Rpop
-        1e-9,    # Rdep
+        1e-8,    # Rec
+        1e-9,    # Rhc
         1e16,    # NT
         1e-10,   # Reh
-        1e6,     # Rdet
+        1e6,     # Ree
         1e-27    # RAug
     ], dtype=np.float64)
 

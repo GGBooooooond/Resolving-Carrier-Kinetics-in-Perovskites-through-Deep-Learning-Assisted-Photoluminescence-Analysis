@@ -1,0 +1,11 @@
+cff-version: 1.0.1
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Chen"
+  given-names: "Wenning"
+  orcid: "https://orcid.org/0000-0002-0997-7083"
+title: "Resolving Carrier Kinetics in Perovskite through Deep Learning-Assisted Photoluminescence Analysis"
+version: 1.0.1
+doi: 10.5281/zenodo.21804545
+date-released: 2026-08-05
+url: "https://github.com/GGBooooooond/Resolving-Carrier-Kinetics-in-Perovskites-through-Deep-Learning-Assisted-Photoluminescence-Analysis"
